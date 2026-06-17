@@ -1,0 +1,22 @@
+{
+  "issueDate": "2026-06-30",
+  "client": {
+    "name": "WEBZI s.r.o.",
+    "ico": "24602175",
+    "dic": "",
+    "street": "Krásova 2919/31a",
+    "city": "Praha 3",
+    "zip": "130 00",
+    "country": "Česká republika"
+  },
+  "dueDays": 14,
+  "note": "Děkujeme za spolupráci.",
+  "items": [
+    {
+      "description": "Vývoj webové aplikace – červen 2025",
+      "quantity": 20,
+      "unit": "hod",
+      "pricePerUnit": 210
+    }
+  ]
+}
