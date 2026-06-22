@@ -11,12 +11,5 @@
   },
   "dueDays": 14,
   "note": "Děkujeme za spolupráci.",
-  "items": [
-    {
-      "description": "Vývoj webové aplikace – červen 2025",
-      "quantity": 20,
-      "unit": "hod",
-      "pricePerUnit": 210
-    }
-  ]
+  "items": []
 }

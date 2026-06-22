@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "invoice": "bun run invoice.ts"
+    "invoice": "bun run invoice.ts",
+    "timesheet": "bun run parse-timesheet.ts"
   },
   "dependencies": {
     "puppeteer": "^22.0.0"

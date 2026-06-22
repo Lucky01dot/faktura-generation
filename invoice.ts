@@ -38,6 +38,7 @@ interface InvoiceInput {
   dueDays?: number;
   paymentMethod?: string;
   variableSymbol?: string;
+  pricePerUnit?: number;
   note?: string;
   client: {
     name: string;
@@ -48,10 +49,10 @@ interface InvoiceInput {
     zip: string;
     country: string;
   };
-  items: InvoiceItem[];
+  items?: InvoiceItem[];
 }
 
-interface Invoice extends Required<Omit<InvoiceInput, "dueDays" | "number" | "variableSymbol" | "note">> {
+interface Invoice extends Required<Omit<InvoiceInput, "dueDays" | "number" | "variableSymbol" | "note" | "pricePerUnit">> {
   number: string;
   variableSymbol: string;
   note?: string;
@@ -293,9 +294,19 @@ function buildHtml(supplier: Supplier, invoice: Invoice): string {
 </html>`;
 }
 
-async function generateInvoice() {
+async function generateInvoice(itemsOverride?: InvoiceItem[]) {
   const supplier = loadJson<Supplier>("./supplier.json");
   const input = loadJson<InvoiceInput>("./invoice.json");
+
+  // Use override items (from CSV) or fall back to invoice.json items
+  const rawItems = itemsOverride ?? input.items ?? [];
+
+  // Apply root-level pricePerUnit to items that don't have their own
+  input.items = rawItems.map((item) => ({
+    ...item,
+    pricePerUnit: item.pricePerUnit ?? input.pricePerUnit ?? 0,
+  }));
+
   const invoice = resolveInvoice(input);
 
   console.log(`Generuji fakturu č. ${invoice.number}...`);
@@ -320,7 +331,14 @@ async function generateInvoice() {
   console.log(`Hotovo: faktura-Jan_Cacha-${invoice.number}.pdf`);
 }
 
-generateInvoice().catch((err) => {
-  console.error("Chyba:", err);
-  process.exit(1);
-});
+export { generateInvoice };
+export type { InvoiceItem };
+
+
+// @ts-ignore
+if (import.meta.url === `file://${process.argv[1]}`.replace(/\\/g, "/")) {
+  generateInvoice().catch((err) => {
+    console.error("Chyba:", err);
+    process.exit(1);
+  });
+}
