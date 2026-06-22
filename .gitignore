@@ -3,3 +3,4 @@ node_modules/
 bun.lock
 supplier.json
 invoice.json
+.idea
