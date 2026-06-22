@@ -1,44 +1,44 @@
-# Faktura generátor
+# Invoice Generator
 
-CLI nástroj pro generování faktur ve formátu PDF. Každý měsíc buď ručně upravíš `invoice.json`, nebo nahraješ CSV z Jira/timesheet a skript vše spočítá sám.
+CLI tool for generating PDF invoices. Each month either manually fill in `invoice.json`, or import a CSV from Jira/timesheet and the script calculates everything automatically.
 
-## Instalace
+## Installation
 
 ```bash
 bun install
 ```
 
-> Puppeteer při první instalaci stáhne Chromium (~170 MB) — jednou, pak už ne.
+> Puppeteer downloads Chromium (~170 MB) on first install — only once.
 
 ---
 
-## Použití
+## Usage
 
-### Varianta A — ruční zadání hodin
+### Option A — manual items
 
-Otevři `invoice.json` a změň:
-- `issueDate` — datum vystavení (splatnost +14 dní automaticky)
-- `items` — seznam položek s počtem hodin
+Open `invoice.json` and set:
+- `issueDate` — issue date (due date +14 days automatically)
+- `items` — list of items with hours
 
 ```bash
 bun run invoice
 ```
 
-### Varianta B — CSV z timesheetu
+### Option B — CSV from timesheet
 
-Dej CSV soubor do složky (nebo zadej cestu jako argument) a spusť:
+Pass the CSV file as an argument (or place it in the folder as `timesheet.csv`):
 
 ```bash
 bun run timesheet timesheet.csv
 ```
 
-Skript automaticky:
-1. Načte CSV a sečte hodiny per issue (WZ-27, WZ-28, ...)
-2. Vypíše přehled do terminálu
-3. Předá items přímo do generátoru — `invoice.json` se nemění
-4. Vygeneruje PDF
+The script will:
+1. Parse the CSV and sum hours per issue (WZ-27, WZ-28, ...)
+2. Print a summary to the terminal
+3. Pass items directly to the generator — `invoice.json` is not modified
+4. Generate the PDF
 
-Očekávaný formát CSV (export z Jira):
+Expected CSV format (Jira export):
 ```
 "issue","Time spent","01 Mon","02 Tue",...
 "WZ-27","10h","","5h",...
@@ -46,42 +46,42 @@ Očekávaný formát CSV (export z Jira):
 
 ---
 
-## Co se generuje automaticky
+## Auto-generated fields
 
-| Pole | Logika |
+| Field | Logic |
 |---|---|
-| `issueDate` | dnešní datum (pokud není v `invoice.json`) |
-| `dueDate` | issueDate + 14 dní (nebo `dueDays: X`) |
-| `number` | `YYYYMM` + pořadové číslo podle existujících PDF |
-| `variableSymbol` | = číslo faktury |
+| `issueDate` | today's date (if not set in `invoice.json`) |
+| `dueDate` | issueDate + 14 days (or `dueDays: X`) |
+| `number` | `YYYYMM` + sequence number based on existing PDFs |
+| `variableSymbol` | = invoice number |
 
-Chceš-li cokoliv přepsat, přidej pole ručně do `invoice.json`.
+To override any field, add it manually to `invoice.json`.
 
 ---
 
-## Struktura souborů
+## File structure
 
 ```
 faktura/
-├── invoice.ts           # generátor PDF (neměníš)
-├── parse-timesheet.ts   # CSV parser (neměníš)
-├── supplier.json        # tvoje údaje (neměníš)
-├── invoice.json         # měníš každý měsíc
+├── invoice.ts           # PDF generator (do not modify)
+├── parse-timesheet.ts   # CSV parser (do not modify)
+├── supplier.json        # your details (do not modify)
+├── invoice.json         # update each month
 └── package.json
 ```
 
 ---
 
-## invoice.json — přehled polí
+## invoice.json — field reference
 
 ```jsonc
 {
-  "issueDate": "2025-06-30",   // datum vystavení (optional, default: dnes)
-  "dueDays": 14,               // splatnost ve dnech (optional, default: 14)
-  "pricePerUnit": 210,         // hodinová sazba — platí pro všechny položky
-  "note": "Děkujeme za spolupráci.",
-  "client": { ... },           // údaje odběratele (nemění se)
-  "items": [                   // volitelné — vyplníš ručně při variantě A; při CSV se nepoužívá
+  "issueDate": "2025-06-30",   // issue date (optional, default: today)
+  "dueDays": 14,               // days until due (optional, default: 14)
+  "pricePerUnit": 210,         // hourly rate — applies to all items
+  "note": "Thank you for your business.",
+  "client": { ... },           // client details (rarely changes)
+  "items": [                   // optional — fill manually for Option A; not used with CSV
     {
       "description": "WZ-27",
       "quantity": 10,
@@ -93,8 +93,8 @@ faktura/
 
 ---
 
-## supplier.json — klíčové položky
+## supplier.json — key fields
 
-- `vatPayer: false` — nejsi plátce DPH (hranice je 2 000 000 Kč/rok)
-- `pricePerUnit` se nastavuje v `invoice.json`, ne zde
-- `footer` — zobrazí se pod fakturou drobným písmem
+- `vatPayer: false` — not a VAT payer (threshold is 2,000,000 CZK/year)
+- `pricePerUnit` is set in `invoice.json`, not here
+- `footer` — displayed at the bottom of the invoice in small print
