@@ -1,4 +1,5 @@
 node_modules/
 *.pdf
 bun.lock
-.idea
+supplier.json
+invoice.json

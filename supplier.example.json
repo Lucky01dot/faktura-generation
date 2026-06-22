@@ -1,0 +1,17 @@
+{
+  "name": "Your Name",
+  "ico": "12345678",
+  "dic": "",
+  "street": "Street 1",
+  "city": "City",
+  "zip": "000 00",
+  "country": "Czech Republic",
+  "email": "you@example.com",
+  "phone": "+420 000 000 000",
+  "bankAccount": "1234567890/0800",
+  "iban": "CZ00 0000 0000 0000 0000 0000",
+  "vatPayer": false,
+  "vatRate": 21,
+  "currency": "CZK",
+  "footer": "Natural person registered in the Trade Register."
+}

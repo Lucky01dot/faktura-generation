@@ -1,0 +1,16 @@
+{
+  "issueDate": "2025-06-30",
+  "pricePerUnit": 210,
+  "client": {
+    "name": "Client s.r.o.",
+    "ico": "87654321",
+    "dic": "",
+    "street": "Street 5",
+    "city": "City",
+    "zip": "110 00",
+    "country": "Czech Republic"
+  },
+  "dueDays": 14,
+  "note": "Thank you for your business.",
+  "items": []
+}
