@@ -309,13 +309,14 @@ async function generateInvoice(itemsOverride?: InvoiceItem[]) {
 
   const invoice = resolveInvoice(input);
 
-  console.log(`Generuji fakturu č. ${invoice.number}...`);
-  console.log(`Vystavení: ${formatDate(invoice.issueDate)}`);
-  console.log(`Splatnost: ${formatDate(invoice.dueDate)}`);
-  console.log(`VS: ${invoice.variableSymbol}`);
+  console.log(`Generating invoice no. ${invoice.number}...`);
+  console.log(`Issue date: ${formatDate(invoice.issueDate)}`);
+  console.log(`Due date: ${formatDate(invoice.dueDate)}`);
+  console.log(`Variable symbol: ${invoice.variableSymbol}`);
 
   const html = buildHtml(supplier, invoice);
-  const outputPath = resolve(__dirname, `faktura-Jan_Cacha-${invoice.number}.pdf`);
+  const supplierSlug = supplier.name.replace(/\s+/g, "_");
+  const outputPath = resolve(__dirname, `faktura-${supplierSlug}-${invoice.number}.pdf`);
 
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
@@ -328,17 +329,17 @@ async function generateInvoice(itemsOverride?: InvoiceItem[]) {
   });
   await browser.close();
 
-  console.log(`Hotovo: faktura-Jan_Cacha-${invoice.number}.pdf`);
+  console.log(`Done: faktura-${supplierSlug}-${invoice.number}.pdf`);
 }
 
 export { generateInvoice };
 export type { InvoiceItem };
 
-
+// Only runs when executed directly, not when imported
 // @ts-ignore
 if (import.meta.url === `file://${process.argv[1]}`.replace(/\\/g, "/")) {
   generateInvoice().catch((err) => {
-    console.error("Chyba:", err);
+    console.error("Error:", err);
     process.exit(1);
   });
 }

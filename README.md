@@ -1,14 +1,43 @@
 # Invoice Generator
 
-CLI tool for generating PDF invoices. Each month either manually fill in `invoice.json`, or import a CSV from Jira/timesheet and the script calculates everything automatically.
+CLI tool for generating PDF invoices from JSON config files. Supports manual item entry or automatic parsing from a Jira timesheet CSV.
+
+> The invoice template is in **Czech** (labels, date format, currency) as it is intended for Czech freelancers.
+
+## Requirements
+
+- [Bun](https://bun.sh) runtime
 
 ## Installation
 
 ```bash
+git clone https://github.com/Lucky01dot/faktura-generation.git
+cd faktura-generation
 bun install
 ```
 
 > Puppeteer downloads Chromium (~170 MB) on first install — only once.
+
+## Setup
+
+Copy the example config files and fill in your details:
+
+```bash
+cp supplier.example.json supplier.json
+cp invoice.example.json invoice.json
+```
+
+**`supplier.json`** — your personal/business details. Fill this in once and don't touch it again:
+- `name`, `ico`, `street`, `city`, `zip`, `country`
+- `email`, `phone`
+- `bankAccount`, `iban`
+- `vatPayer` — set to `true` only if you are a VAT payer
+- `footer` — small print at the bottom of the invoice
+
+**`invoice.json`** — update this each month:
+- `issueDate` — invoice date in `YYYY-MM-DD` format
+- `pricePerUnit` — your hourly rate (applies to all items)
+- `client` — client details (usually stays the same)
 
 ---
 
@@ -16,17 +45,30 @@ bun install
 
 ### Option A — manual items
 
-Open `invoice.json` and set:
-- `issueDate` — issue date (due date +14 days automatically)
-- `items` — list of items with hours
+Add items directly to `invoice.json`:
+
+```jsonc
+{
+  "issueDate": "2025-06-30",
+  "pricePerUnit": 210,
+  "client": { ... },
+  "items": [
+    {
+      "description": "Web development – June 2025",
+      "quantity": 20,
+      "unit": "hrs"
+    }
+  ]
+}
+```
+
+Then run:
 
 ```bash
 bun run invoice
 ```
 
-### Option B — CSV from timesheet
-
-Pass the CSV file as an argument (or place it in the folder as `timesheet.csv`):
+### Option B — CSV from Jira timesheet
 
 ```bash
 bun run timesheet timesheet.csv
@@ -38,7 +80,7 @@ The script will:
 3. Pass items directly to the generator — `invoice.json` is not modified
 4. Generate the PDF
 
-Expected CSV format (Jira export):
+Expected CSV format (Jira timesheet export):
 ```
 "issue","Time spent","01 Mon","02 Tue",...
 "WZ-27","10h","","5h",...
@@ -46,55 +88,39 @@ Expected CSV format (Jira export):
 
 ---
 
+## Output
+
+The generated PDF is saved in the project folder:
+
+```
+faktura-your_name-202506001.pdf
+```
+
+---
+
 ## Auto-generated fields
+
+You don't need to set these manually — they are calculated automatically:
 
 | Field | Logic |
 |---|---|
-| `issueDate` | today's date (if not set in `invoice.json`) |
-| `dueDate` | issueDate + 14 days (or `dueDays: X`) |
-| `number` | `YYYYMM` + sequence number based on existing PDFs |
-| `variableSymbol` | = invoice number |
+| `issueDate` | today's date (if omitted in `invoice.json`) |
+| `dueDate` | `issueDate` + 14 days (override with `dueDays`) |
+| `number` | `YYYYMM` + sequence based on existing PDFs in folder |
+| `variableSymbol` | same as invoice number |
 
-To override any field, add it manually to `invoice.json`.
+To override any of these, simply add the field to `invoice.json`.
 
 ---
 
 ## File structure
 
 ```
-faktura/
-├── invoice.ts           # PDF generator (do not modify)
-├── parse-timesheet.ts   # CSV parser (do not modify)
-├── supplier.json        # your details (do not modify)
-├── invoice.json         # update each month
+├── invoice.ts                # PDF generator (do not modify)
+├── parse-timesheet.ts        # CSV parser (do not modify)
+├── supplier.json             # your details — gitignored, never committed
+├── invoice.json              # updated each month — gitignored, never committed
+├── supplier.example.json     # template for supplier.json
+├── invoice.example.json      # template for invoice.json
 └── package.json
 ```
-
----
-
-## invoice.json — field reference
-
-```jsonc
-{
-  "issueDate": "2025-06-30",   // issue date (optional, default: today)
-  "dueDays": 14,               // days until due (optional, default: 14)
-  "pricePerUnit": 210,         // hourly rate — applies to all items
-  "note": "Thank you for your business.",
-  "client": { ... },           // client details (rarely changes)
-  "items": [                   // optional — fill manually for Option A; not used with CSV
-    {
-      "description": "WZ-27",
-      "quantity": 10,
-      "unit": "hod",
-    }
-  ]
-}
-```
-
----
-
-## supplier.json — key fields
-
-- `vatPayer: false` — not a VAT payer (threshold is 2,000,000 CZK/year)
-- `pricePerUnit` is set in `invoice.json`, not here
-- `footer` — displayed at the bottom of the invoice in small print
