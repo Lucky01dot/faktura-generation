@@ -7,6 +7,10 @@
     "timesheet": "bun run parse-timesheet.ts"
   },
   "dependencies": {
-    "puppeteer": "^22.0.0"
+    "puppeteer": "^22.0.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5"
   }
 }

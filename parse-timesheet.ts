@@ -3,6 +3,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
 import { generateInvoice } from "./invoice.ts";
+// @ts-ignore
 import type { InvoiceItem } from "./invoice.ts";
 
 // @ts-ignore
@@ -36,6 +37,24 @@ function parseTimesheet(csvPath: string): TimesheetRow[] {
     });
 }
 
+async function promptServiceTypes(rows: TimesheetRow[]): Promise<Record<string, string>> {
+    // @ts-ignore
+    const prefixes = [...new Set(rows.map((r) => r.issue.replace(/-\d+$/, "")))];
+    const readline = await import("readline");
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+    const ask = (q: string): Promise<string> =>
+        new Promise((res) => rl.question(q, (a) => res(a.trim())));
+
+    const map: Record<string, string> = {};
+    for (const prefix of prefixes) {
+        map[prefix] = await ask(`Service type for ${prefix} issues: `);
+    }
+
+    rl.close();
+    return map;
+}
+
 async function main() {
     const csvPath = process.argv[2]
         ? resolve(process.cwd(), process.argv[2])
@@ -63,12 +82,18 @@ async function main() {
     console.log(`${"".padEnd(10)} ────`);
     console.log(`${"Total".padEnd(10)} ${totalHours}h  →  ${totalHours * pricePerUnit} CZK\n`);
 
-    const items: InvoiceItem[] = rows.map((r) => ({
-        description: r.issue,
-        quantity: r.totalHours,
-        unit: "hod",
-        pricePerUnit,
-    }));
+    const serviceTypes = await promptServiceTypes(rows);
+
+    const items: InvoiceItem[] = rows.map((r) => {
+        const prefix = r.issue.replace(/-\d+$/, "");
+        const serviceType = serviceTypes[prefix] ?? prefix;
+        return {
+            description: `${serviceType} ${r.issue}`,
+            quantity: r.totalHours,
+            unit: "hod",
+            pricePerUnit,
+        };
+    });
 
     await generateInvoice(items);
 }

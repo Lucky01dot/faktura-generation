@@ -30,7 +30,7 @@ cp invoice.example.json invoice.json
 **`supplier.json`** — your personal/business details. Fill this in once and don't touch it again:
 - `name`, `ico`, `street`, `city`, `zip`, `country`
 - `email`, `phone`
-- `bankAccount`, `iban`
+- `bankAccount`, `iban` — IBAN is required for QR payment code generation
 - `vatPayer` — set to `true` only if you are a VAT payer
 - `footer` — small print at the bottom of the invoice
 
@@ -56,7 +56,7 @@ Add items directly to `invoice.json`:
     {
       "description": "Web development – June 2025",
       "quantity": 20,
-      "unit": "hrs"
+      "unit": "hod"
     }
   ]
 }
@@ -77,8 +77,15 @@ bun run timesheet timesheet.csv
 The script will:
 1. Parse the CSV and sum hours per issue (WZ-27, WZ-28, ...)
 2. Print a summary to the terminal
-3. Pass items directly to the generator — `invoice.json` is not modified
-4. Generate the PDF
+3. Prompt you to enter a service type label for each unique issue prefix:
+   ```
+   Service type for "WZ" issues: Implementing...
+   Service type for "LL" issues: Implementing...
+   ```
+4. Pass items directly to the generator — `invoice.json` is not modified
+5. Generate the PDF
+
+Item descriptions on the invoice will appear as e.g. `Programátorské služby WZ-27`.
 
 Expected CSV format (Jira timesheet export):
 ```
@@ -93,8 +100,10 @@ Expected CSV format (Jira timesheet export):
 The generated PDF is saved in the project folder:
 
 ```
-faktura-your_name-202506001.pdf
+faktura-Your_Name-202506001.pdf
 ```
+
+The invoice includes a **QR payment code** (SPAYD format) under the payment details, generated automatically from your IBAN.
 
 ---
 

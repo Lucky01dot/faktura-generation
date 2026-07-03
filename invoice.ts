@@ -2,6 +2,8 @@ import puppeteer from "puppeteer";
 import { readFileSync, readdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+// @ts-ignore
+import QRCode from "qrcode";
 
 // @ts-ignore
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +41,7 @@ interface InvoiceInput {
   paymentMethod?: string;
   variableSymbol?: string;
   pricePerUnit?: number;
+  descriptionPrefix?: string;
   note?: string;
   client: {
     name: string;
@@ -52,7 +55,7 @@ interface InvoiceInput {
   items?: InvoiceItem[];
 }
 
-interface Invoice extends Required<Omit<InvoiceInput, "dueDays" | "number" | "variableSymbol" | "note" | "pricePerUnit">> {
+interface Invoice extends Required<Omit<InvoiceInput, "dueDays" | "number" | "variableSymbol" | "note" | "pricePerUnit" | "descriptionPrefix">> {
   number: string;
   variableSymbol: string;
   note?: string;
@@ -78,7 +81,6 @@ function resolveInvoice(input: InvoiceInput): Invoice {
     return toIso(d);
   })();
 
-  // Auto-generate number: YYYYMM + 3-digit seq (looks at existing PDFs)
   const yyyymm = issueDate.slice(0, 7).replace("-", "");
   let seq = 1;
   try {
@@ -129,15 +131,34 @@ function monthYear(iso: string): string {
   return `${MONTHS_CS[parseInt(m, 10) - 1]} ${y}`;
 }
 
-function buildHtml(supplier: Supplier, invoice: Invoice): string {
-  const subtotal = invoice.items.reduce(
+function buildSpayd(supplier: Supplier, invoice: Invoice, total: number): string {
+  // SPAYD format for Czech banking QR payments
+  const iban = supplier.iban?.replace(/\s/g, "") ?? "";
+  const amount = total.toFixed(2);
+  const vs = invoice.variableSymbol;
+  const msg = `Faktura ${invoice.number}`;
+
+  return `SPD*1.0*ACC:${iban}*AM:${amount}*CC:CZK*X-VS:${vs}*MSG:${msg}`;
+}
+
+async function generateQrSvg(data: string): Promise<string> {
+  return QRCode.toString(data, {
+    type: "svg",
+    margin: 0,
+    width: 120,
+    color: { dark: "#1a1a1a", light: "#ffffff" },
+  });
+}
+
+async function buildHtml(supplier: Supplier, invoice: Invoice): Promise<string> {
+  const subtotal = (invoice.items ?? []).reduce(
       (sum, i) => sum + i.quantity * i.pricePerUnit,
       0
   );
   const vat = supplier.vatPayer ? subtotal * (supplier.vatRate / 100) : 0;
   const total = subtotal + vat;
 
-  const itemRows = invoice.items
+  const itemRows = (invoice.items ?? [])
       .map(
           (item) => `
     <tr>
@@ -165,6 +186,18 @@ function buildHtml(supplier: Supplier, invoice: Invoice): string {
       ? `<p class="non-vat-note">Fakturující osoba není plátcem DPH.</p>`
       : "";
 
+  // Generate QR code only if IBAN is available
+  let qrBlock = "";
+  if (supplier.iban) {
+    const spayd = buildSpayd(supplier, invoice, total);
+    const qrSvg = await generateQrSvg(spayd);
+    qrBlock = `
+      <div class="qr-block">
+        <div class="qr-label">QR platba</div>
+        <div class="qr-code">${qrSvg}</div>
+      </div>`;
+  }
+
   return `<!DOCTYPE html>
 <html lang="cs">
 <head>
@@ -174,52 +207,55 @@ function buildHtml(supplier: Supplier, invoice: Invoice): string {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 12px;
+      font-size: 11px;
       color: #1a1a1a;
-      padding: 2.5cm 2cm;
-      line-height: 1.5;
+      padding: 1.2cm 1.5cm;
+      line-height: 1.4;
     }
     .header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 2.5rem;
-      padding-bottom: 1.5rem;
+      margin-bottom: 1.2rem;
+      padding-bottom: 1rem;
       border-bottom: 2px solid #1a1a1a;
     }
-    .header-left .invoice-title { font-size: 28px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
-    .header-left .invoice-number { font-size: 14px; color: #666; }
-    .header-right { text-align: right; font-size: 12px; }
-    .header-right .supplier-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .header-left .invoice-title { font-size: 24px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+    .header-left .invoice-number { font-size: 13px; color: #666; }
+    .header-right { text-align: right; font-size: 11px; }
+    .header-right .supplier-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
     .header-right p { color: #333; margin: 1px 0; }
-    .parties { display: flex; gap: 2rem; margin-bottom: 2rem; }
-    .party { flex: 1; background: #f7f7f7; border-radius: 6px; padding: 1rem; }
-    .party-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 8px; }
-    .party-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .parties { display: flex; gap: 1.2rem; margin-bottom: 1.2rem; }
+    .party { flex: 1; background: #f7f7f7; border-radius: 6px; padding: 0.7rem; }
+    .party-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 6px; }
+    .party-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
     .party p { color: #444; margin: 1px 0; }
-    .payment-info { flex: 1; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1rem; }
+    .payment-info { flex: 1; border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.7rem; }
     .payment-info table { width: 100%; }
-    .payment-info td { padding: 3px 0; }
+    .payment-info td { padding: 2px 0; }
     .payment-info td:first-child { color: #777; width: 50%; }
     .payment-info td:last-child { font-weight: 600; text-align: right; }
-    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
     .items-table thead tr { background: #1a1a1a; color: #fff; }
-    .items-table thead th { padding: 8px 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; }
+    .items-table thead th { padding: 6px 8px; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; }
     .items-table thead th.right { text-align: right; }
     .items-table tbody tr:nth-child(even) { background: #f9f9f9; }
-    .items-table tbody td { padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+    .items-table tbody td { padding: 5px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
     .items-table td.right { text-align: right; }
-    .totals-section { display: flex; justify-content: flex-end; margin-bottom: 1.5rem; }
-    .totals-box { width: 280px; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
+    .totals-section { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+    .totals-box { width: 260px; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
     .totals-box table { width: 100%; border-collapse: collapse; }
-    .subtotal-row td { padding: 5px 12px; color: #555; border-bottom: 1px solid #eee; }
+    .subtotal-row td { padding: 4px 10px; color: #555; border-bottom: 1px solid #eee; }
     .subtotal-row td:last-child { text-align: right; }
-    .total-row td { padding: 10px 12px; font-size: 14px; font-weight: 700; background: #1a1a1a; color: #fff; }
+    .total-row td { padding: 8px 10px; font-size: 13px; font-weight: 700; background: #1a1a1a; color: #fff; }
     .total-row td:last-child { text-align: right; }
-    .note-box { background: #fffbf0; border-left: 3px solid #f0a500; border-radius: 4px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 12px; }
-    .non-vat-note { font-size: 11px; color: #888; margin-bottom: 0.5rem; }
-    .footer-note { font-size: 11px; color: #aaa; border-top: 1px solid #eee; padding-top: 0.75rem; margin-top: 1rem; }
-    @media print { body { padding: 1.5cm; } }
+    .qr-block { text-align: center; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 0.5px solid #e0e0e0; }
+    .qr-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 4px; }
+    .qr-code svg { width: 80px; height: 80px; }
+    .note-box { background: #fffbf0; border-left: 3px solid #f0a500; border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; font-size: 11px; }
+    .non-vat-note { font-size: 10px; color: #888; margin-bottom: 0.4rem; }
+    .footer-note { font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 0.5rem; margin-top: 0.75rem; }
+    @media print { body { padding: 1cm 1.5cm; } }
   </style>
 </head>
 <body>
@@ -260,6 +296,7 @@ function buildHtml(supplier: Supplier, invoice: Invoice): string {
         ${supplier.bankAccount ? `<tr><td>Číslo účtu</td><td>${supplier.bankAccount}</td></tr>` : ""}
         ${supplier.iban ? `<tr><td>IBAN</td><td>${supplier.iban}</td></tr>` : ""}
       </table>
+      ${qrBlock}
     </div>
   </div>
 
@@ -267,8 +304,8 @@ function buildHtml(supplier: Supplier, invoice: Invoice): string {
     <thead>
       <tr>
         <th style="width:55%;">Popis</th>
-        <th class="right" style="width:12%;">Množství</th>
-        <th class="right" style="width:18%;">Cena / j.</th>
+        <th class="right" style="width:12%;">Hodiny</th>
+        <th class="right" style="width:18%;">Cena / h.</th>
         <th class="right" style="width:15%;">Celkem</th>
       </tr>
     </thead>
@@ -298,10 +335,8 @@ async function generateInvoice(itemsOverride?: InvoiceItem[]) {
   const supplier = loadJson<Supplier>("./supplier.json");
   const input = loadJson<InvoiceInput>("./invoice.json");
 
-  // Use override items (from CSV) or fall back to invoice.json items
   const rawItems = itemsOverride ?? input.items ?? [];
 
-  // Apply root-level pricePerUnit to items that don't have their own
   input.items = rawItems.map((item) => ({
     ...item,
     pricePerUnit: item.pricePerUnit ?? input.pricePerUnit ?? 0,
@@ -314,7 +349,7 @@ async function generateInvoice(itemsOverride?: InvoiceItem[]) {
   console.log(`Due date: ${formatDate(invoice.dueDate)}`);
   console.log(`Variable symbol: ${invoice.variableSymbol}`);
 
-  const html = buildHtml(supplier, invoice);
+  const html = await buildHtml(supplier, invoice);
   const supplierSlug = supplier.name.replace(/\s+/g, "_");
   const outputPath = resolve(__dirname, `faktura-${supplierSlug}-${invoice.number}.pdf`);
 
