@@ -3,7 +3,6 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
 import { generateInvoice } from "./invoice.ts";
-// @ts-ignore
 import type { InvoiceItem } from "./invoice.ts";
 
 // @ts-ignore
@@ -16,8 +15,17 @@ interface TimesheetRow {
 
 function parseHours(value: string): number {
     if (!value || value.trim() === "") return 0;
-    const match = value.trim().match(/^(\d+(?:\.\d+)?)h$/);
-    return match ? parseFloat(match[1]) : 0;
+    const v = value.trim();
+    // "27h 30m" or "27h30m"
+    const hmMatch = v.match(/^(\d+)h\s*(\d+)m$/);
+    if (hmMatch) return parseInt(hmMatch[1]) + parseInt(hmMatch[2]) / 60;
+    // "27h"
+    const hMatch = v.match(/^(\d+(?:\.\d+)?)h$/);
+    if (hMatch) return parseFloat(hMatch[1]);
+    // "30m"
+    const mMatch = v.match(/^(\d+)m$/);
+    if (mMatch) return parseInt(mMatch[1]) / 60;
+    return 0;
 }
 
 function parseTimesheet(csvPath: string): TimesheetRow[] {
@@ -38,20 +46,27 @@ function parseTimesheet(csvPath: string): TimesheetRow[] {
 }
 
 async function promptServiceTypes(rows: TimesheetRow[]): Promise<Record<string, string>> {
-    // @ts-ignore
     const prefixes = [...new Set(rows.map((r) => r.issue.replace(/-\d+$/, "")))];
-    const readline = await import("readline");
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
-    const ask = (q: string): Promise<string> =>
-        new Promise((res) => rl.question(q, (a) => res(a.trim())));
 
     const map: Record<string, string> = {};
     for (const prefix of prefixes) {
-        map[prefix] = await ask(`Service type for ${prefix} issues: `);
+        process.stdout.write(`Service type for "${prefix}" issues: `);
+        const answer = await new Promise<string>((res) => {
+            let buf = "";
+            process.stdin.resume();
+            process.stdin.setEncoding("utf-8");
+            process.stdin.on("data", function handler(chunk: string) {
+                buf += chunk;
+                if (buf.includes("\n")) {
+                    process.stdin.removeListener("data", handler);
+                    process.stdin.pause();
+                    res(buf.split("\n")[0].trim());
+                }
+            });
+        });
+        map[prefix] = answer;
     }
 
-    rl.close();
     return map;
 }
 
